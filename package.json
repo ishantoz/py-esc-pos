@@ -1,0 +1,29 @@
+{
+  "name": "printer",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/escpos": "^2.5.5",
+    "@types/pdfkit": "^0.13.9"
+  },
+  "scripts": {
+    "release": "gcc pos-printer.c -o bin/pos-printer"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "canvas": "^3.1.0",
+    "escpos": "^3.0.0-alpha.6",
+    "escpos-network": "^3.0.0-alpha.5",
+    "express": "^5.1.0",
+    "multer": "^2.0.0",
+    "pdf-poppler": "^0.2.1",
+    "pdf-to-printer": "^5.6.0",
+    "pdfkit": "^0.17.1",
+    "qz-tray": "^2.2.4",
+    "sharp": "^0.34.2",
+    "tmp-promise": "^3.0.3"
+  }
+}

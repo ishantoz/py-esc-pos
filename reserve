@@ -1,0 +1,199 @@
+# import fitz                            # PyMuPDF
+# from escpos.printer import Network
+# from PIL import Image, ImageFilter
+# import io
+
+# # PDF → Image → Thermal printer settings
+# PDF_FILE     = 'kot.pdf'
+# PRINTER_IP   = '192.168.0.87'
+# PRINTER_PORT = 9100
+# PRINTER_WIDTH = 576   # dots (80 mm paper)
+
+# # Oversampling factor (2–3): higher = more smoothing on downsample
+# ZOOM = 2
+
+# # Open PDF and printer
+# doc = fitz.open(PDF_FILE)
+# printer = Network(PRINTER_IP, PRINTER_PORT)
+
+# for page in doc:
+#     # 1) Render page at ZOOM× resolution
+#     mat = fitz.Matrix(ZOOM, ZOOM)
+#     pix = page.get_pixmap(matrix=mat)
+#     img = Image.open(io.BytesIO(pix.tobytes(output='png')))
+
+#     # 2) Grayscale
+#     img = img.convert('L')
+
+#     # 3) Resize down to printer width, with LANCZOS filter
+#     target_width = PRINTER_WIDTH
+#     wpercent = (target_width / float(img.width))
+#     hsize    = int(img.height * wpercent)
+#     img = img.resize((target_width, hsize), resample=Image.LANCZOS)
+
+#     # 4) Mild blur to smooth before threshold
+#     img = img.filter(ImageFilter.GaussianBlur(radius=0.8))
+
+#     # 5) Binarize at mid-level threshold
+#     img = img.point(lambda p: 0 if p < 128 else 255, mode='1')
+
+#     # 6) Print
+#     with io.BytesIO() as output:
+#         img.save(output, format='PNG')
+#         printer.image(io.BytesIO(output.getvalue()))
+
+#     printer.cut()
+
+# printer.close()
+
+
+import fitz                            # PyMuPDF
+from escpos.printer import Network
+from PIL import Image, ImageFilter, ImageEnhance
+import io
+
+# PDF → Image → Thermal printer settings
+PDF_FILE     = 'invoice.pdf'
+PRINTER_IP   = '192.168.0.87'
+PRINTER_PORT = 9100
+PRINTER_WIDTH = 576   # dots (80 mm paper)
+
+# Oversampling factor (2–3)
+ZOOM = 2
+
+doc = fitz.open(PDF_FILE)
+# printer = Network(PRINTER_IP, PRINTER_PORT)
+
+for page in doc:
+    # 1) Render at ZOOM× resolution
+    mat = fitz.Matrix(ZOOM, ZOOM)
+    pix = page.get_pixmap(matrix=mat)
+    img = Image.open(io.BytesIO(pix.tobytes(output='png')))
+
+    # 2) Grayscale
+    img = img.convert('L')
+
+    # 3) Resize down to printer width
+    wpercent = PRINTER_WIDTH / img.width
+    hsize    = int(img.height * wpercent)
+    img = img.resize((PRINTER_WIDTH, hsize), Image.LANCZOS)
+
+    # 4) Mild blur to smooth
+    img = img.filter(ImageFilter.GaussianBlur(radius=0.5))
+
+    # 5) Boost contrast
+    contrast = ImageEnhance.Contrast(img)
+    img = contrast.enhance(1.8)   # tweak 1.5–2.5 as needed
+
+    # 6) Binarize at threshold
+    THRESHOLD = 120  # lower value → stronger black
+    img = img.point(lambda p: 0 if p < THRESHOLD else 255, mode='1')
+
+    # 7) Print
+    with io.BytesIO() as output:
+        # img.save(output, format='PNG')
+        img.show()
+        # printer.image(io.BytesIO(output.getvalue()))
+    # printer.cut()
+
+# printer.close()
+
+
+
+
+  # @app.route("/print-pdf", methods=["POST"])
+    # def queue_print():
+    #     file = request.files.get("file")
+    #     host = request.form.get("host")
+    #     port = request.form.get("port")
+    #     if not file or not host or not port:
+    #         return jsonify({"error": "Missing file, host or port"}), 400
+
+    #     try:
+    #         port = int(port)
+    #     except ValueError:
+    #         return jsonify({"error": "Invalid port"}), 400
+
+    #     filename = secure_filename(file.filename)
+    #     unique_id = uuid.uuid4().hex
+    #     save_path = os.path.join(PDF_DIR, f"{unique_id}_{filename}")
+    #     file.save(save_path)
+
+    #     printer_width = int(request.form.get("printer_width", 576))
+    #     threshold = int(request.form.get("threshold", 100))
+    #     feed_lines = int(request.form.get("feed_lines", 1))
+    #     zoom = float(request.form.get("zoom", 2.0))
+
+    #     # Insert job record
+    #     with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
+    #         conn.execute(
+    #             """
+    #             INSERT INTO print_jobs
+    #               (file_path, printer_ip, printer_port, printer_width, threshold, feed_lines, zoom)
+    #             VALUES (?, ?, ?, ?, ?, ?, ?)
+    #             """,
+    #             (save_path, host, port, printer_width, threshold, feed_lines, zoom)
+    #         )
+    #         conn.commit()
+
+    #     # Signal the worker thread that a new job is available
+    #     new_job_event.set()
+    #     return jsonify({"message": "Print job queued"}), 202
+
+    # def printer_worker():
+    # Single persistent connection for reads
+    # conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    # conn.row_factory = sqlite3.Row
+
+    # while True:
+    #     # Wait until new job arrives or short timeout
+    #     new_job_event.wait(timeout=0.2)
+    #     new_job_event.clear()
+
+    #     # Process all pending jobs
+    #     while True:
+    #         cur = conn.execute(
+    #             "SELECT * FROM print_jobs WHERE status='pending' ORDER BY created_at LIMIT 1"
+    #         )
+    #         job = cur.fetchone()
+
+    #         if not job:
+    #             break
+
+    #         job_id = job["id"]
+    #         file_path = job["file_path"]
+    #         print(f"[INFO] Found job #{job_id}")
+
+    #         if not os.path.exists(file_path):
+    #             print(f"[WARN] File not found for job #{job_id}, removing job")
+    #             conn.execute("DELETE FROM print_jobs WHERE id=?", (job_id,))
+    #             conn.commit()
+    #             continue
+
+    #         print(f"[INFO] Starting print job #{job_id}: {file_path}")
+    #         conn.execute(
+    #             "UPDATE print_jobs SET status='printing' WHERE id=?", (job_id,)
+    #         )
+    #         conn.commit()
+
+    #         try:
+    #             printer.print_pdf_on_thermal_network(
+    #                 pdf_path=file_path,
+    #                 printer_ip=job["printer_ip"],
+    #                 printer_port=job["printer_port"],
+    #                 printer_width=job["printer_width"],
+    #                 threshold=job["threshold"],
+    #                 feed_lines=job["feed_lines"],
+    #                 zoom=job["zoom"],
+    #             )
+    #             print(f"[INFO] Print job #{job_id} completed successfully.")
+    #         except Exception as e:
+    #             print(f"[ERROR] Print job #{job_id} failed: {e}")
+
+    #         # Cleanup file and record
+    #         try:
+    #             os.remove(file_path)
+    #         except Exception as e:
+    #             print(f"[WARN] Could not delete file {file_path}: {e}")
+    #         conn.execute("DELETE FROM print_jobs WHERE id=?", (job_id,))
+    #         conn.commit()
