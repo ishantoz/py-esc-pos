@@ -21,11 +21,18 @@ A Python library for developers who need granular control over ESC/POS thermal p
 # From source
 git clone <repo>
 cd py-esc-pos
+
+# Option 1: Using uv (recommended if available)
+uv sync
+
+# Option 2: Using pip
 pip install -e .
 
-# Or install dependencies directly
+# Option 3: Install dependencies directly
 pip install -r requirements.txt
 ```
+
+**Note**: `uv sync` is the fastest option and will automatically create a virtual environment with all dependencies. If you don't have `uv` installed, you can install it with `pip install uv` or visit [uv.pm](https://uv.pm).
 
 ### OS-Specific Requirements
 
