@@ -34,7 +34,7 @@ def print_pdf_on_thermal_usb(
     printer_width: int = 576,
     zoom: float = 2.0,
     feed_lines: int = 1,
-    threshold: int = 130,
+    threshold: int = 160,
 ) -> None:
     # Open USB printer (assumes Usb class available)
     printer = Usb(usb_vendor_id, usb_product_id, interface=usb_interface)

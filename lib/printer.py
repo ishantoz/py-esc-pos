@@ -30,7 +30,7 @@ def print_pdf_on_thermal_printer(
         printer_width=printer_width,
         crop=True,
         pad_pixels=None,
-        blur_radius=0.4,
+        blur_radius=0.5,
         contrast=1.3,
         binarize=True,
     )
