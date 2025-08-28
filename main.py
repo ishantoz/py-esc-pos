@@ -1,20 +1,22 @@
-from flask import Flask, request, jsonify
+import logging
+import webbrowser
+from flask import Flask, request, jsonify, redirect
 import sqlite3, os, threading, time
 
 from werkzeug.utils import secure_filename
-from lib.printer_interface import print_pdf_on_thermal_network, print_pdf_on_thermal_usb
+from lib.printer_interface import print_pdf_on_thermal_network, print_pdf_on_thermal_usb, verify_connection_espos_on_usb, verify_connection_espos_on_network
 import uuid
 from flask_cors import CORS
-
-DB_PATH = "print_queue.db"
-PDF_DIR = "print_jobs"
+from lib.tspl import check_printer_usb_connection, check_printer_network_connection, build_barcode_tspl, print_barcode_tspl, print_barcode_tspl_network, print_dummy_tspl 
+    
+DB_PATH = "data/print_queue.db"
+PDF_DIR = "data/print_jobs"
 MAX_RETRIES = 3
 os.makedirs(PDF_DIR, exist_ok=True)
 
 app = Flask(__name__)
 CORS(app)
 
-# Event to wake the printer worker immediately on new jobs
 new_job_event = threading.Event()
 
 
@@ -25,7 +27,6 @@ def init_db():
     with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA synchronous=NORMAL;")
-        # Create table if not exists
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS print_jobs (
@@ -53,30 +54,61 @@ def init_db():
         )
         conn.commit()
 
-@app.route("/hello", methods=["GET"])
-def hello_api():
-    return jsonify({"message": "HELLO FROM POS PRINTER BRIDGE"})
+@app.route("/verify/status", methods=["GET"])
+def verify_status():
+    return jsonify({"message": "POS Printer Bridge is running"}), 200
+    
+@app.route("/verify/espos-connection", methods=["POST"])
+def verify_espos_connection():
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Invalid JSON payload"}), 400
+    conn_type = data["connection_type"]
+    if conn_type == "network":
+        host = data["host"]
+        port = data["port"]
+        if not host or not port:
+            return jsonify({"error": "Missing host or port"}), 400
+        if verify_connection_espos_on_network(host, port):
+            return jsonify({"message": "ESPOS connection verified"}), 200
+        else:
+            return jsonify({"error": "ESPOS connection failed"}), 400
+    else:
+        vid = data["usb_vendor_id"]
+        pid = data["usb_product_id"]
+        iface = data.get("usb_interface", 0)  
+        if not vid or not pid:
+            return jsonify({"error": "Missing USB vendor_id or product_id"}), 400
+        try:
+            usb_vendor_id = int(vid, 16)
+            usb_product_id = int(pid, 16)
+            usb_interface = int(iface)
+            if verify_connection_espos_on_usb(usb_vendor_id, usb_product_id, usb_interface):
+                return jsonify({"message": "ESPOS connection verified"}), 200
+            else:
+                return jsonify({"error": "ESPOS connection failed"}), 400
+        except ValueError:
+            return jsonify({"error": "Invalid USB IDs or interface"}), 400
 
-@app.route("/print-pdf", methods=["POST"])
+
+
+@app.route("/print/eos-pos-pdf", methods=["POST"])
 def queue_print():
     file = request.files.get("file")
     conn_type = request.form.get("connection_type")
     if not file or conn_type not in ("network", "usb"):
         return jsonify({"error": "Missing file or invalid connection_type"}), 400
 
-    # Save uploaded PDF
     filename = secure_filename(file.filename)
     unique_id = uuid.uuid4().hex
     save_path = os.path.join(PDF_DIR, f"{unique_id}_{filename}")
     file.save(save_path)
 
-    # Shared print options
     printer_width = int(request.form.get("printer_width", 576))
     threshold = int(request.form.get("threshold", 100))
     feed_lines = int(request.form.get("feed_lines", 1))
     zoom = float(request.form.get("zoom", 2.0))
-
-    # Connection-specific parameters
+    
     host = port = usb_vendor_id = usb_product_id = usb_interface = None
 
     if conn_type == "network":
@@ -130,6 +162,115 @@ def queue_print():
 
     new_job_event.set()
     return jsonify({"message": "Print job queued"}), 202
+
+
+
+@app.route("/verify/tspl-connection", methods=["POST"])
+def verify_tspl_connection():
+    try:
+        data = request.get_json(silent=True)
+
+        if not data:
+            return jsonify({"error": "Invalid JSON payload"}), 400
+        
+        required_fields = ["vid", "pid"]
+        missing_fields = [f for f in required_fields if f not in data]
+
+        if missing_fields:
+            return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
+
+        vid = hex(data["vid"])
+        pid = hex(data["pid"])
+
+        dev = check_printer_usb_connection(vid, pid)
+        if dev is None:
+            return jsonify({"error": "Printer not found"}), 400
+        print_dummy_tspl(dev)
+        return jsonify({"message": "Printer found"}), 200
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid data types in JSON"}), 400
+
+
+@app.route("/print/tspl-barcode", methods=["POST"])
+def print_barcode_label():
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Invalid JSON payload"}), 400
+
+    connection_type = str(data.get("connection_type", "usb")).lower()
+    if connection_type not in ("usb", "network"):
+        return jsonify({"error": "Invalid connection type. Use 'usb' or 'network'."}), 400
+
+    base_required = ["sizeX", "sizeY", "barcodeData", "barcodeHeight"]
+    if connection_type == "usb":
+        required = base_required + ["usb_vendor_id", "usb_product_id"]
+    else:  # network
+        required = base_required + ["host", "port"]
+
+    missing = [f for f in required if f not in data]
+    if missing:
+        return jsonify({"error": f"Missing required fields: {', '.join(missing)}"}), 400
+
+    try:
+        sizeX = int(data["sizeX"])
+        sizeY = int(data["sizeY"])
+        barcodeData = str(data["barcodeData"])
+        barcodeHeight = int(data["barcodeHeight"])
+
+        gapLength = int(data.get("gapLength", 0))
+        direction = int(data.get("dir", 0))
+        topText = str(data.get("topText", ""))
+        topTextStart = int(data.get("topTextStart", 15))
+        printCount = int(data.get("printCount", 1)) or 1
+        barcodeStart = int(data.get("barcodeStart", 0))
+
+        tspl = build_barcode_tspl(
+            sizeX, sizeY, gapLength, direction,
+            topText, topTextStart, barcodeStart,
+            barcodeData, printCount, barcodeHeight
+        )
+
+        if connection_type == "usb":
+            usb_vendor_id = int(data["usb_vendor_id"], 16)
+            usb_product_id = int(data["usb_product_id"], 16)
+            
+            dev = check_printer_usb_connection(usb_vendor_id, usb_product_id)
+            if dev is None:
+                return jsonify({"error": "USB printer not found"}), 400
+
+            print_barcode_tspl(tspl, dev)
+            return jsonify({"message": "Barcode label printed via USB"}), 200
+
+        else:  # network
+            host = str(data["host"])
+            port = int(data.get("port", 9100))
+            try:
+                sock = check_printer_network_connection(host, port)
+            except ValueError as e:
+                return jsonify({"error": str(e)}), 400
+
+            try:
+                ok = print_barcode_tspl_network(tspl, sock)
+                if not ok:
+                    return jsonify({"error": "Failed to send TSPL to network printer"}), 500
+                return jsonify({"message": "Barcode label printed via network"}), 200
+            finally:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+
+    except (ValueError, TypeError) as e:
+        return jsonify({"error": f"Invalid data: {e}"}), 400
+    except Exception as e:
+        return jsonify({"error": f"Unexpected error: {e}"}), 500
+    finally:
+        if connection_type == "network":
+            sock.close()
+
+@app.route("/open-pos-mohajon-app", methods=["GET"])
+def open_pos_mohajon_app():
+    return redirect("https://pos.mohajon.app", code=302)
 
 
 def printer_worker():
@@ -209,14 +350,18 @@ def printer_worker():
                 time.sleep(2)
 
 
+
 if __name__ == "__main__":
+    logging.getLogger('werkzeug').setLevel(logging.ERROR)
+    webbrowser.open("https://localhost:5000/open-pos-mohajon-app")
     init_db()
     threading.Thread(target=printer_worker, daemon=True).start()
     port = int(os.environ.get("POS_PRINTER_BRIDGE_PORT", 5000))
     app.run(
-    debug=False,
-    port=port,
-    host="0.0.0.0",
-    threaded=True,
-    ssl_context=("certs/cert.pem", "certs/key.pem")
-)
+        debug=False,
+        port=port,
+        host="0.0.0.0",
+        threaded=True,
+        ssl_context=("certs/cert.pem", "certs/key.pem")
+    )
+    print("Server started at https://localhost:5000/open-pos-mohajon-app")

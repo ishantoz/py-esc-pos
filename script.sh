@@ -1,1 +1,0 @@
-pyinstaller --onefile --add-data "print_jobs;print_jobs"  --add-data "print_queue.db;." --collect-data escpos  main.py

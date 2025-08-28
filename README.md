@@ -1,366 +1,489 @@
-# py-esc-pos
+# POS Printer Bridge
 
-**Low-level ESC/POS printer control with raw command access and PDF-to-thermal printing**
+A robust Flask-based bridge application that enables communication between web applications and thermal printers (ESPOS and TSPL) via USB and network connections. This bridge supports PDF printing, barcode generation, and provides a RESTful API for seamless integration.
 
-A Python library for developers who need granular control over ESC/POS thermal printers. Send raw commands, handle PDF printing with custom image processing, and manage both network and USB printer connections.
+## Features
 
-## 🎯 What This Is
+- **Multi-Protocol Support**: ESPOS (ESC/POS) and TSPL printer protocols
+- **Connection Types**: USB and Network (Ethernet/WiFi) printer connections
+- **File Formats**: PDF to thermal printer conversion with image optimization
+- **Barcode Printing**: Generate and print barcodes using TSPL commands
+- **Queue Management**: Built-in print job queue with retry mechanisms
+- **RESTful API**: HTTP endpoints for easy integration
+- **Cross-Platform**: Windows, macOS, and Linux support
+- **SSL Support**: Secure HTTPS communication
 
-- **Raw ESC/POS command access** - Send byte-level commands directly to printers
-- **PDF-to-thermal conversion** - Convert PDFs to optimized thermal printer images
-- **Network & USB support** - Connect via TCP/IP or USB with vendor/product ID control
-- **Image preprocessing pipeline** - Customizable threshold, contrast, blur, and binarization
-- **Queue management** - REST API for print job queuing and status tracking
-- **Low-level printer control** - Direct access to printer._raw() for custom commands
+## System Requirements
 
-## 🚀 Quick Start
+### Operating Systems
+- **Windows 10/11** (64-bit recommended)
+- **macOS 10.14+**
+- **Linux** (Ubuntu 18.04+, CentOS 7+, etc.)
 
-### Installation
+### Hardware Requirements
+- **RAM**: Minimum 2GB, Recommended 4GB+
+- **Storage**: 100MB free space
+- **USB Ports**: For USB printer connections
+- **Network**: For network printer connections
+
+### Software Dependencies
+- **Python 3.13+**
+- **pip** or **uv** package manager
+- **Git** (for cloning the repository)
+
+## Installation Guide
+
+### 1. Clone the Repository
 
 ```bash
-# From source
-git clone <repo>
+git clone https://github.com/ishantoz/py-esc-pos.git
 cd py-esc-pos
+```
 
-# Option 1: Using uv (recommended if available)
+### 2. Python Environment Setup
+
+#### Option A: Using uv (Recommended)
+```bash
+# Install uv if not already installed
+pip install uv
+
+# Create virtual environment and install dependencies
 uv sync
+```
 
-# Option 2: Using pip
-pip install -e .
+#### Option B: Using pip
+```bash
+# Create virtual environment
+python -m venv venv
 
-# Option 3: Install dependencies directly
+# Activate virtual environment
+# Windows
+venv\Scripts\activate
+# macOS/Linux
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-**Note**: `uv sync` is the fastest option and will automatically create a virtual environment with all dependencies. If you don't have `uv` installed, you can install it with `pip install uv` or visit [uv.pm](https://uv.pm).
+### 3. Operating System Specific Setup
 
-### OS-Specific Requirements
+#### Windows Setup
 
-**⚠️ USB printer access requires different setup on each operating system**
+**USB Driver Installation (Required for USB printers):**
 
-#### Quick Setup Checklist
+1. **Download Zadig**: Download [Zadig](https://zadig.akeo.ie/) from the official website
+2. **Install USB Drivers**:
+   - Connect your USB thermal printer
+   - Run Zadig as Administrator
+   - Select your printer from the device list
+   - Choose "WinUSB" as the driver
+   - Click "Install Driver" or "Replace Driver"
 
-**Windows:**
-- [ ] Run as Administrator
-- [ ] Install libusb drivers with Zadig
-- [ ] Replace original printer drivers
-- [ ] Check Device Manager for conflicts
+**Alternative USB Drivers**:
+- **libusb-win32**: For older Windows versions
+- **WinUSB**: Modern Windows USB driver framework
 
-**Linux:**
-- [ ] Add user to `dialout` group
-- [ ] Log out and back in
-- [ ] Check USB permissions with `lsusb`
-- [ ] Verify udev rules if needed
-
-**macOS:**
-- [ ] Grant USB access to Terminal/IDE
-- [ ] Check System Preferences → Security & Privacy → USB
-- [ ] Ensure Terminal.app has USB permissions
-- [ ] Check for SIP restrictions
-
-#### Windows
-- **Replace original printer drivers with libusb**: Use Zadig (included in project) to install libusb-win32 or WinUSB drivers
-- **Run as Administrator**: Required for USB device access
-- **Driver replacement process**:
-  1. Connect your USB printer
-  2. Run `zadig-2.9.exe` as Administrator
-  3. Select your printer from the dropdown
-  4. Choose "libusb-win32" or "WinUSB" driver
-  5. Click "Replace Driver"
-
-#### Linux
-- **USB permissions**: Add your user to the `dialout` group or create udev rules
-- **Group setup**:
-  ```bash
-  sudo usermod -a -G dialout $USER
-  # Log out and back in, or run: newgrp dialout
-  ```
-- **Udev rules** (alternative): Create `/etc/udev/rules.d/99-printer.rules`:
-  ```bash
-  SUBSYSTEM=="usb", ATTRS{idVendor}=="xxxx", ATTRS{idProduct}=="yyyy", MODE="0666"
-  # Replace xxxx/yyyy with your printer's vendor/product IDs
-  ```
-
-#### macOS
-- **USB permissions**: Grant terminal/IDE access to USB devices in System Preferences
-- **Security settings**: Go to System Preferences → Security & Privacy → Privacy → USB
-- **Terminal access**: Add Terminal.app or your IDE to the USB access list
-- **SIP considerations**: System Integrity Protection may require additional setup for some USB devices
-
-### Basic Usage
-
-```python
-from lib.printer_interface import print_pdf_on_thermal_network
-
-# Print PDF on network printer
-print_pdf_on_thermal_network(
-    pdf_path="invoice.pdf",
-    printer_ip="192.168.1.100",
-    printer_port=9100,
-    printer_width=576,  # 80mm thermal printer
-    zoom=2.0,          # Scale factor for better halftone conversion
-    threshold=130,      # Binarization threshold (0-255)
-    feed_lines=3        # Lines to feed before cutting
-)
-```
-
-### USB Printer
-
-```python
-from lib.printer_interface import print_pdf_on_thermal_usb
-
-# Print PDF on USB printer
-print_pdf_on_thermal_usb(
-    pdf_path="receipt.pdf",
-    usb_vendor_id=0x0483,    # Find with lsusb or device manager
-    usb_product_id=0x5740,
-    usb_interface=0,
-    printer_width=384          # 58mm thermal printer
-)
-```
-
-## 🔧 Raw ESC/POS Commands
-
-Access the printer at the byte level for maximum control:
-
-```python
-from lib.printer import ESC_INIT, ESC_FEED_N, CUT_FULL
-
-# Initialize printer
-printer._raw(ESC_INIT)
-
-# Feed 5 lines
-printer._raw(ESC_FEED_N(5))
-
-# Full cut
-printer._raw(CUT_FULL)
-```
-
-### Available Raw Commands
-
-```python
-ESC_INIT = b"\x1b@"                    # Initialize printer
-ESC_FEED_N = lambda n: b"\x1b\x64" + bytes([n])  # Feed n lines
-ESC_ALIGN_L = b"\x1ba\x00"             # Left align
-CUT_FULL = b"\x1dV\x00"                # Full cut
-CUT_PARTIAL = b"\x1dV\x01"             # Partial cut
-```
-
-## 🖨️ PDF Processing Pipeline
-
-The PDF-to-thermal conversion includes several configurable steps:
-
-```python
-from lib.pdftoimg import pdf_to_images
-
-images = pdf_to_images(
-    pdf_path="document.pdf",
-    zoom=2.0,              # Render scale (2.0 recommended)
-    threshold=130,          # Binarization threshold
-    printer_width=576,      # Target width in pixels
-    crop=True,              # Auto-crop empty margins
-    pad_pixels=5,          # Padding around content
-    blur_radius=0.4,       # Gaussian blur for halftone
-    contrast=1.3,          # Contrast enhancement
-    binarize=True,          # Convert to black/white
-    max_pages=None          # Limit pages to process
-)
-```
-
-### Image Processing Steps
-
-1. **PDF Rendering** - High-resolution rendering with PyMuPDF
-2. **Auto-cropping** - Remove empty margins automatically
-3. **Preprocessing** - Blur, contrast enhancement
-4. **Resizing** - Scale to printer width while preserving aspect ratio
-5. **Binarization** - Convert to black/white for thermal printing
-6. **Width enforcement** - Ensure exact printer width match
-
-## 🌐 REST API
-
-Run the Flask server for print job queuing:
-
+**Troubleshooting USB Issues**:
 ```bash
+# Check USB device recognition
+python -c "import usb.core; print([f'VID:{d.idVendor:04x} PID:{d.idProduct:04x}' for d in usb.core.find(find_all=True)])"
+```
+
+#### macOS Setup
+
+**USB Driver Installation**:
+```bash
+# Install libusb via Homebrew
+brew install libusb
+
+# Grant USB permissions to Terminal/IDE
+# System Preferences > Security & Privacy > Privacy > USB
+```
+
+**Troubleshooting**:
+```bash
+# Check USB permissions
+ls -la /dev/usb*
+# If no devices found, check System Integrity Protection (SIP) status
+csrutil status
+```
+
+#### Linux Setup
+
+**Ubuntu/Debian**:
+```bash
+# Install system dependencies
+sudo apt update
+sudo apt install libusb-1.0-0-dev libudev-dev
+
+# Add udev rules for USB access
+sudo nano /etc/udev/rules.d/99-usb-thermal.rules
+```
+
+Add this content to the udev rules file:
+```
+SUBSYSTEM=="usb", ATTRS{idVendor}=="[YOUR_VENDOR_ID]", ATTRS{idProduct}=="[YOUR_PRODUCT_ID]", MODE="0666"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="[YOUR_VENDOR_ID]", ATTRS{idProduct}=="[YOUR_PRODUCT_ID]", GROUP="dialout"
+```
+
+**CentOS/RHEL**:
+```bash
+# Install system dependencies
+sudo yum install libusb1-devel systemd-devel
+
+# Reload udev rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+### 4. SSL Certificate Setup
+
+**Generate Self-Signed Certificates**:
+```bash
+# Create certs directory
+mkdir certs
+
+# Generate private key
+openssl genrsa -out certs/key.pem 2048
+
+# Generate certificate
+openssl req -new -x509 -key certs/key.pem -out certs/cert.pem -days 365 -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
+```
+
+**Windows (using Git Bash or WSL)**:
+```bash
+# Install OpenSSL if not available
+# Download from: https://slproweb.com/products/Win32OpenSSL.html
+
+# Generate certificates using the same commands as above
+```
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file in the project root:
+```bash
+# Server Configuration
+POS_PRINTER_BRIDGE_PORT=5000
+FLASK_ENV=production
+
+# Database Configuration
+DB_PATH=print_queue.db
+PDF_DIR=print_jobs
+
+# SSL Configuration
+SSL_CERT_PATH=certs/cert.pem
+SSL_KEY_PATH=certs/key.pem
+```
+
+### Printer Configuration
+
+**USB Printer Settings**:
+```json
+{
+  "connection_type": "usb",
+  "usb_vendor_id": "0x0483",
+  "usb_product_id": "0x5740",
+  "usb_interface": 0,
+  "printer_width": 576,
+  "threshold": 160,
+  "feed_lines": 1,
+  "zoom": 2.0
+}
+```
+
+**Network Printer Settings**:
+```json
+{
+  "connection_type": "network",
+  "host": "192.168.1.100",
+  "port": 9100,
+  "printer_width": 576,
+  "threshold": 100,
+  "feed_lines": 1,
+  "zoom": 2.0
+}
+```
+
+## Usage
+
+### 1. Running the Application
+
+**Development Mode**:
+```bash
+# Activate virtual environment
+source venv/bin/activate  # macOS/Linux
+venv\Scripts\activate     # Windows
+
+# Run the application
 python main.py
 ```
 
-### Endpoints
-
-- `POST /print-pdf` - Queue a PDF for printing
-- `GET /hello` - Health check
-- Database-backed job queue with retry logic
-
-### Example API Usage
-
+**Production Mode**:
 ```bash
-# Network printer
-curl -X POST http://localhost:5000/print-pdf \
-  -F "file=@invoice.pdf" \
-  -F "connection_type=network" \
-  -F "host=192.168.1.100" \
-  -F "port=9100" \
-  -F "printer_width=576" \
-  -F "threshold=130"
+# Build executable
+python build.py
 
-# USB printer
-curl -X POST http://localhost:5000/print-pdf \
+# Run the built executable
+./release/v1.0.0/Mohajon\ POS.exe  # Windows
+./release/v1.0.0/Mohajon\ POS       # macOS/Linux
+```
+
+### 2. API Endpoints
+
+#### Health Check
+```bash
+GET /verify/status
+```
+
+#### Test ESPOS Connection
+```bash
+POST /verify/espos-connection
+Content-Type: application/json
+
+{
+  "connection_type": "usb",
+  "usb_vendor_id": "0x0483",
+  "usb_product_id": "0x5740",
+  "usb_interface": 0
+}
+```
+
+#### Print PDF
+```bash
+POST /print/eos-pos-pdf
+Content-Type: multipart/form-data
+
+file: [PDF_FILE]
+connection_type: usb
+usb_vendor_id: 0x0483
+usb_product_id: 0x5740
+printer_width: 576
+threshold: 160
+feed_lines: 1
+zoom: 2.0
+```
+
+#### Print Barcode (TSPL)
+```bash
+POST /print/tspl-barcode
+Content-Type: application/json
+
+{
+  "connection_type": "usb",
+  "usb_vendor_id": "0x0483",
+  "usb_product_id": "0x5740",
+  "sizeX": 50,
+  "sizeY": 30,
+  "barcodeData": "123456789",
+  "barcodeHeight": 20,
+  "printCount": 1
+}
+```
+
+### 3. Integration Examples
+
+**JavaScript/Node.js**:
+```javascript
+const FormData = require('form-data');
+const fs = require('fs');
+
+const form = new FormData();
+form.append('file', fs.createReadStream('receipt.pdf'));
+form.append('connection_type', 'usb');
+form.append('usb_vendor_id', '0x0483');
+form.append('usb_product_id', '0x5740');
+
+fetch('https://localhost:5000/print/eos-pos-pdf', {
+  method: 'POST',
+  body: form
+});
+```
+
+**Python**:
+```python
+import requests
+
+files = {'file': open('receipt.pdf', 'rb')}
+data = {
+    'connection_type': 'usb',
+    'usb_vendor_id': '0x0483',
+    'usb_product_id': '0x5740',
+    'printer_width': 576,
+    'threshold': 160
+}
+
+response = requests.post(
+    'https://localhost:5000/print/eos-pos-pdf',
+    files=files,
+    data=data,
+    verify=False  # For self-signed certificates
+)
+```
+
+**cURL**:
+```bash
+curl -X POST \
   -F "file=@receipt.pdf" \
   -F "connection_type=usb" \
   -F "usb_vendor_id=0x0483" \
   -F "usb_product_id=0x5740" \
-  -F "printer_width=384"
+  -F "printer_width=576" \
+  -F "threshold=160" \
+  https://localhost:5000/print/eos-pos-pdf
 ```
 
-## 🛠️ Advanced Usage
+## Building and Distribution
 
-### Custom Printer Commands
+### Building Executable
 
-```python
-from lib.printer_interface import print_pdf_on_thermal_network
-
-# Get printer instance for custom commands
-printer = Network("192.168.1.100", 9100)
-
-try:
-    # Custom initialization
-    printer._raw(b"\x1b@")  # Initialize
-    printer._raw(b"\x1b\x61\x01")  # Center align
-    
-    # Your custom printing logic here
-    
-    # Custom feed and cut
-    printer._raw(b"\x1b\x64\x05")  # Feed 5 lines
-    printer._raw(b"\x1dV\x00")     # Full cut
-    
-finally:
-    printer.close()
-```
-
-### Image Preview
-
-```python
-from lib.pdftoimg import preview_pdf_images
-
-# Generate preview images
-image_paths = preview_pdf_images(
-    pdf_path="document.pdf",
-    out_dir="previews",
-    show=True,
-    zoom=2.0,
-    threshold=130
-)
-```
-
-## 📊 Printer Specifications
-
-### Common Thermal Printer Widths
-
-- **58mm**: 384 pixels (48 bytes)
-- **80mm**: 576 pixels (72 bytes)
-- **112mm**: 832 pixels (104 bytes)
-
-### ESC/POS Command Reference
-
-| Command | Hex | Description |
-|---------|-----|-------------|
-| ESC @ | 1B 40 | Initialize printer |
-| ESC d n | 1B 64 n | Feed n lines |
-| ESC a n | 1B 61 n | Alignment (0=left, 1=center, 2=right) |
-| GS V n | 1D 56 n | Cut (0=full, 1=partial) |
-
-## 🔍 Troubleshooting
-
-### Finding USB Printer IDs
-
-**Linux/macOS:**
 ```bash
-lsusb
-# Look for your printer vendor/product IDs
+# Run the build script
+python build.py
 ```
 
-**Windows:**
-```cmd
-# Device Manager → USB controllers → Properties → Details → Hardware IDs
-# Format: USB\VID_xxxx&PID_yyyy
+The build process will:
+1. Create a PyInstaller executable
+2. Bundle all dependencies
+3. Include the `certs` folder
+4. Output to `release/v1.0.0/Mohajon POS.exe`
+
+### Build Configuration
+
+Edit `build.py` to customize:
+- Application version
+- Release path
+- Application name
+- Icon file
+
+## Troubleshooting
+
+### Common Issues
+
+**USB Device Not Found**:
+```bash
+# Check device recognition
+python -c "import usb.core; print([f'VID:{d.idVendor:04x} PID:{d.idProduct:04x}' for d in usb.core.find(find_all=True)])"
+
+# Verify driver installation
+# Windows: Check Device Manager
+# macOS: Check System Information > USB
+# Linux: Check lsusb command
 ```
 
-### OS-Specific USB Issues
+**Permission Denied (Linux/macOS)**:
+```bash
+# Add user to dialout group (Linux)
+sudo usermod -a -G dialout $USER
 
-#### Windows USB Problems
-- **"Access denied" errors**: Run as Administrator and ensure libusb drivers are installed
-- **Printer not detected**: Check Device Manager for yellow warning triangles
-- **Driver conflicts**: Original printer drivers may block libusb access
-- **Solution**: Use Zadig to completely replace the driver
-
-#### Linux USB Permission Issues
-- **"Permission denied" errors**: User not in `dialout` group
-- **"Device busy" errors**: Another process is using the USB device
-- **"No such device"**: Check if udev rules are properly configured
-- **Debug commands**:
-  ```bash
-  lsusb                    # List USB devices
-  groups $USER            # Check user groups
-  sudo dmesg | tail      # Check kernel messages
-  ```
-
-#### macOS USB Access Issues
-- **"Operation not permitted"**: USB access not granted to terminal/IDE
-- **"Device not found"**: Check System Preferences → Security & Privacy → USB
-- **SIP blocking**: System Integrity Protection may prevent USB access
-- **Terminal permissions**: Ensure Terminal.app has USB access in Privacy settings
-
-### Network Printer Issues
-
-- Ensure port 9100 is open (default ESC/POS port)
-- Check firewall settings
-- Verify printer IP address and network connectivity
-
-### Image Quality Issues
-
-- Increase `zoom` for better halftone conversion
-- Adjust `threshold` for optimal black/white balance
-- Use `blur_radius` to smooth halftones before binarization
-
-## 📦 Dependencies
-
-- **python-escpos** - ESC/POS printer communication
-- **PyMuPDF** - PDF processing and rendering
-- **Pillow** - Image manipulation and processing
-- **Flask** - REST API server
-- **pyusb** - USB device communication
-
-### Included Tools
-
-- **Zadig** (`zadig-2.9.zip`) - Windows USB driver replacement tool
-- **PowerShell scripts** - Windows service installation and management
-- **Shell scripts** - Linux/macOS setup helpers
-
-## 🏗️ Architecture
-
-```
-lib/
-├── printer_interface.py    # High-level printer functions
-├── printer.py             # Core printing logic + raw commands
-└── pdftoimg.py           # PDF-to-image conversion pipeline
-
-main.py                    # Flask REST API server
+# Grant USB permissions (macOS)
+# System Preferences > Security & Privacy > Privacy > USB
 ```
 
-## 🤝 Contributing
+**SSL Certificate Errors**:
+```bash
+# Regenerate certificates
+openssl genrsa -out certs/key.pem 2048
+openssl req -new -x509 -key certs/key.pem -out certs/cert.pem -days 365
+```
 
-This project is designed for developers who need low-level printer control. Contributions welcome:
+**Print Job Stuck in Queue**:
+```bash
+# Check database
+sqlite3 print_queue.db "SELECT * FROM print_jobs WHERE status='pending';"
 
-- Raw ESC/POS command additions
-- Image processing improvements
-- Printer driver support
-- Performance optimizations
+# Clear stuck jobs
+sqlite3 print_queue.db "DELETE FROM print_jobs WHERE status='failed';"
+```
 
-## 📄 License
+### Debug Mode
 
-[Add your license here]
+Enable debug logging by setting environment variables:
+```bash
+export FLASK_ENV=development
+export FLASK_DEBUG=1
+```
 
-## 🔗 Related Projects
+### Log Files
 
-- [python-escpos](https://github.com/python-escpos/python-escpos) - Base ESC/POS library
-- [PyMuPDF](https://github.com/pymupdf/PyMuPDF) - PDF processing
-- [python-thermal-printer](https://github.com/adafruit/Adafruit_CircuitPython_Thermal_Printer) - CircuitPython thermal printer library
+Check application logs for detailed error information:
+- **Windows**: Check console output
+- **macOS/Linux**: Check system logs or console output
+
+## Development
+
+### Project Structure
+```
+py-esc-pos/
+├── lib/                    # Core library modules
+│   ├── printer.py         # Printer interface
+│   ├── printer_interface.py # Connection management
+│   ├── pdftoimg.py       # PDF to image conversion
+│   └── tspl.py           # TSPL protocol support
+├── main.py                # Main Flask application
+├── build.py               # Build script
+├── requirements.txt       # Python dependencies
+├── pyproject.toml        # Project configuration
+├── certs/                 # SSL certificates
+├── print_jobs/           # Temporary PDF storage
+└── README.md             # This file
+```
+
+### Adding New Printer Protocols
+
+1. Create a new module in `lib/`
+2. Implement the required interface methods
+3. Add new API endpoints in `main.py`
+4. Update the build configuration if needed
+
+### Testing
+
+```bash
+# Run basic tests
+python test.py
+
+# Test USB connection
+python -c "from lib.tspl import check_printer_usb_connection; print(check_printer_usb_connection(0x0483, 0x5740))"
+
+# Test network connection
+python -c "from lib.tspl import check_printer_network_connection; print(check_printer_network_connection('192.168.1.100', 9100))"
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support
+
+For support and questions:
+- Create an issue on GitHub
+- Check the troubleshooting section
+- Review the API documentation
+- Test with the provided examples
+
+## Changelog
+
+### Version 1.0.0
+- Initial release
+- ESPOS and TSPL protocol support
+- USB and Network printer connections
+- PDF printing capabilities
+- Barcode generation
+- Print job queue management
+- RESTful API
+- SSL support
+- Cross-platform compatibility
+
+---
+
+**Note**: This application requires proper USB driver installation on Windows systems. Use Zadig or similar tools to install the appropriate drivers for your thermal printer.

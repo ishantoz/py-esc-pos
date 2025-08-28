@@ -11,7 +11,6 @@ def print_pdf_on_thermal_network(
     feed_lines: int = 1,
     threshold: int = 130,
 ) -> None:
-    # Open network printer (assumes Network class available)
     printer = Network(printer_ip, printer_port)
     try:
         print_pdf_on_thermal_printer(
@@ -36,7 +35,6 @@ def print_pdf_on_thermal_usb(
     feed_lines: int = 1,
     threshold: int = 160,
 ) -> None:
-    # Open USB printer (assumes Usb class available)
     printer = Usb(usb_vendor_id, usb_product_id, interface=usb_interface)
     try:
         print_pdf_on_thermal_printer(
@@ -51,8 +49,42 @@ def print_pdf_on_thermal_usb(
         printer.close()
 
 
+def verify_connection_espos_on_network(
+    printer_ip: str,
+    printer_port: int = 9100,
+) -> bool:
+    printer = Network(printer_ip, printer_port)
+    try:
+        text = f"Verify Success! \n"
+        text += f"Network Connection Type: Network \n"
+        text += f"Network IP: {printer_ip} \n"
+        text += f"Network Port: {printer_port} \n"
+        printer.text(text)
+        printer.cut()
+        return True
+    except Exception as e:
+        printer.close()
+        return False
+    finally:
+        printer.close()
 
-
-
-
-
+def verify_connection_espos_on_usb(
+    usb_vendor_id: str,
+    usb_product_id: str,
+    usb_interface: int = 0,
+) -> bool:
+    printer = Usb(usb_vendor_id, usb_product_id, interface=usb_interface)
+    try:
+        text = f"Verify Success! \n"
+        text += f"USB Connection Type: USB \n"
+        text += f"USB Vendor ID: {hex(usb_vendor_id)} \n"
+        text += f"USB Product ID: {hex(usb_product_id)} \n"
+        text += f"USB Interface: {usb_interface} \n"
+        printer.text(text)
+        printer.cut()
+        return True
+    except Exception as e:
+        printer.close()
+        return False
+    finally:
+        printer.close()
