@@ -85,6 +85,14 @@ pip install -r requirements.txt
 - **WinUSB**: Modern Windows USB driver framework
 
 **Troubleshooting USB Issues**:
+
+**Using uv**:
+```bash
+# Check USB device recognition
+uv run -c "import usb.core; print([f'VID:{d.idVendor:04x} PID:{d.idProduct:04x}' for d in usb.core.find(find_all=True)])"
+```
+
+**Using pip/venv**:
 ```bash
 # Check USB device recognition
 python -c "import usb.core; print([f'VID:{d.idVendor:04x} PID:{d.idProduct:04x}' for d in usb.core.find(find_all=True)])"
@@ -170,8 +178,9 @@ POS_PRINTER_BRIDGE_PORT=5000
 FLASK_ENV=production
 
 # Database Configuration
-DB_PATH=print_queue.db
-PDF_DIR=print_jobs
+DB_PATH = "data/db/data.db"
+PDF_DIR = "data/pdf"
+POS_PDF_JOB_DIR = f"{PDF_DIR}/esc-pos-jobs"
 
 # SSL Configuration
 SSL_CERT_PATH=certs/cert.pem
@@ -212,6 +221,14 @@ SSL_KEY_PATH=certs/key.pem
 ### 1. Running the Application
 
 **Development Mode**:
+
+**Option A: Using uv (Recommended)**:
+```bash
+# Run the application directly with uv
+uv run main.py
+```
+
+**Option B: Using pip/venv**:
 ```bash
 # Activate virtual environment
 source venv/bin/activate  # macOS/Linux
@@ -222,6 +239,18 @@ python main.py
 ```
 
 **Production Mode**:
+
+**Option A: Using uv**:
+```bash
+# Build executable
+uv run build.py
+
+# Run the built executable
+./release/v1.0.0/Mohajon\ POS.exe  # Windows
+./release/v1.0.0/Mohajon\ POS       # macOS/Linux
+```
+
+**Option B: Using pip/venv**:
 ```bash
 # Build executable
 python build.py
@@ -363,15 +392,23 @@ Edit `build.py` to customize:
 ### Common Issues
 
 **USB Device Not Found**:
+
+**Using uv**:
+```bash
+# Check device recognition
+uv run -c "import usb.core; print([f'VID:{d.idVendor:04x} PID:{d.idProduct:04x}' for d in usb.core.find(find_all=True)])"
+```
+
+**Using pip/venv**:
 ```bash
 # Check device recognition
 python -c "import usb.core; print([f'VID:{d.idVendor:04x} PID:{d.idProduct:04x}' for d in usb.core.find(find_all=True)])"
-
-# Verify driver installation
-# Windows: Check Device Manager
-# macOS: Check System Information > USB
-# Linux: Check lsusb command
 ```
+
+**Verify driver installation**:
+- **Windows**: Check Device Manager
+- **macOS**: Check System Information > USB
+- **Linux**: Check lsusb command
 
 **Permission Denied (Linux/macOS)**:
 ```bash
@@ -440,6 +477,19 @@ py-esc-pos/
 
 ### Testing
 
+**Option A: Using uv**:
+```bash
+# Run basic tests
+uv run test.py
+
+# Test USB connection
+uv run -c "from lib.tspl import check_printer_usb_connection; print(check_printer_usb_connection(0x0483, 0x5740))"
+
+# Test network connection
+uv run -c "from lib.tspl import check_printer_network_connection; print(check_printer_network_connection('192.168.1.100', 9100))"
+```
+
+**Option B: Using pip/venv**:
 ```bash
 # Run basic tests
 python test.py

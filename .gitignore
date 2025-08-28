@@ -193,3 +193,5 @@ print_jobs
 venv
 
 /release
+
+/data

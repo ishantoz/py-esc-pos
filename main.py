@@ -9,10 +9,20 @@ import uuid
 from flask_cors import CORS
 from lib.tspl import check_printer_usb_connection, check_printer_network_connection, build_barcode_tspl, print_barcode_tspl, print_barcode_tspl_network, print_dummy_tspl 
     
-DB_PATH = "data/print_queue.db"
-PDF_DIR = "data/print_jobs"
+DB_PATH = "data/db/data.db"
+PDF_DIR = "data/pdf"
+POS_PDF_JOB_DIR = f"{PDF_DIR}/esc-pos-jobs"
+
 MAX_RETRIES = 3
-os.makedirs(PDF_DIR, exist_ok=True)
+
+if not os.path.exists(DB_PATH):
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+
+if not os.path.exists(PDF_DIR):
+    os.makedirs(PDF_DIR, exist_ok=True)
+
+if not os.path.exists(POS_PDF_JOB_DIR):
+    os.makedirs(POS_PDF_JOB_DIR, exist_ok=True)
 
 app = Flask(__name__)
 CORS(app)
@@ -101,7 +111,7 @@ def queue_print():
 
     filename = secure_filename(file.filename)
     unique_id = uuid.uuid4().hex
-    save_path = os.path.join(PDF_DIR, f"{unique_id}_{filename}")
+    save_path = os.path.join(POS_PDF_JOB_DIR, f"{unique_id}_{filename}")
     file.save(save_path)
 
     printer_width = int(request.form.get("printer_width", 576))
