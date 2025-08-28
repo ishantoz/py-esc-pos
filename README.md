@@ -246,8 +246,8 @@ python main.py
 uv run build.py
 
 # Run the built executable
-./release/v1.0.0/Mohajon\ POS.exe  # Windows
-./release/v1.0.0/Mohajon\ POS       # macOS/Linux
+./release/v1.0.0/POS Printer Bridge.exe  # Windows
+./release/v1.0.0/POS Printer Bridge       # macOS/Linux
 ```
 
 **Option B: Using pip/venv**:
@@ -256,8 +256,8 @@ uv run build.py
 python build.py
 
 # Run the built executable
-./release/v1.0.0/Mohajon\ POS.exe  # Windows
-./release/v1.0.0/Mohajon\ POS       # macOS/Linux
+./release/v1.0.0/POS Printer Bridge.exe  # Windows
+./release/v1.0.0/POS Printer Bridge       # macOS/Linux
 ```
 
 ### 2. API Endpoints

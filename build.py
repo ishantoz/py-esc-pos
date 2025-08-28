@@ -7,7 +7,7 @@ import shutil
 # Release path
 app_version = "1.0.0"
 release_path = f"release/v{app_version}"
-app_name = "Mohajon POS"
+app_name = "POS Printer Bridge"
 app_icon = "app.ico"
 
 escpos_path = os.path.dirname(escpos.__file__)
@@ -30,7 +30,8 @@ certs_data_arg = f"certs{sep}certs" if os.path.exists("certs") else ""
 PyInstaller.__main__.run([
     'main.py',
     '--onefile',
-    '--console',
+    '--windowed',
+    '--noconsole',
     f'--icon={app_icon}',
     f'--name={app_name}',
     f'--distpath={release_path}',
@@ -58,3 +59,13 @@ if os.path.exists(certs_source):
     print(f"Copied {certs_source} folder to {certs_dest}")
 else:
     print(f"Warning: {certs_source} folder not found, skipping copy")
+
+# Copy icon file to release directory
+icon_source = app_icon
+icon_dest = os.path.join(release_path, app_icon)
+
+if os.path.exists(icon_source):
+    shutil.copy2(icon_source, icon_dest)
+    print(f"Copied {icon_source} to {icon_dest}")
+else:
+    print(f"Warning: {icon_source} not found, skipping copy")

@@ -1,9 +1,12 @@
 import logging
-import webbrowser
+import sys
+import tkinter as tk
+from tkinter.scrolledtext import ScrolledText
 from flask import Flask, request, jsonify, redirect
 import sqlite3, os, threading, time
 
 from werkzeug.utils import secure_filename
+from lib.path import resource_path
 from lib.printer_interface import print_pdf_on_thermal_network, print_pdf_on_thermal_usb, verify_connection_espos_on_usb, verify_connection_espos_on_network
 import uuid
 from flask_cors import CORS
@@ -278,10 +281,6 @@ def print_barcode_label():
         if connection_type == "network":
             sock.close()
 
-@app.route("/open-pos-mohajon-app", methods=["GET"])
-def open_pos_mohajon_app():
-    return redirect("https://pos.mohajon.app", code=302)
-
 
 def printer_worker():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -361,17 +360,51 @@ def printer_worker():
 
 
 
+class GuiConsole(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("POS Printer Bridge")
+        self.geometry("700x500")
+
+        # Set icon
+        self.iconbitmap('app.ico')
+
+        # Scrolled text for logs
+        self.text_area = ScrolledText(self, state='disabled', bg='black', fg='white')
+        self.text_area.pack(fill='both', expand=True)
+
+        # Redirect stdout/stderr
+        sys.stdout = self
+        sys.stderr = self
+
+        # Start server automatically
+        threading.Thread(target=self.run_server, daemon=True).start()
+
+    def write(self, message):
+        self.text_area.config(state='normal')
+        self.text_area.insert(tk.END, message)
+        self.text_area.yview(tk.END)
+        self.text_area.config(state='disabled')
+
+    def flush(self):
+        pass  # Required for compatibility
+
+    def run_server(self):
+        print("Starting POS Printer Bridge server...")
+        logging.getLogger('werkzeug').setLevel(logging.ERROR)
+        init_db()
+        threading.Thread(target=printer_worker, daemon=True).start()
+        port = int(os.environ.get("POS_PRINTER_BRIDGE_PORT", 5000))
+        print(f"Server started at https://localhost:{port}")
+        app.run(
+            debug=False,
+            port=port,
+            host="0.0.0.0",
+            threaded=True,
+            ssl_context=("certs/cert.pem", "certs/key.pem")
+        )
+
+
 if __name__ == "__main__":
-    logging.getLogger('werkzeug').setLevel(logging.ERROR)
-    webbrowser.open("https://localhost:5000/open-pos-mohajon-app")
-    init_db()
-    threading.Thread(target=printer_worker, daemon=True).start()
-    port = int(os.environ.get("POS_PRINTER_BRIDGE_PORT", 5000))
-    app.run(
-        debug=False,
-        port=port,
-        host="0.0.0.0",
-        threaded=True,
-        ssl_context=("certs/cert.pem", "certs/key.pem")
-    )
-    print("Server started at https://localhost:5000/open-pos-mohajon-app")
+    gui = GuiConsole()
+    gui.mainloop()
