@@ -2,11 +2,10 @@ import logging
 import sys
 import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
-from flask import Flask, request, jsonify, redirect
+from flask import Flask, request, jsonify
 import sqlite3, os, threading, time
 
 from werkzeug.utils import secure_filename
-from lib.path import resource_path
 from lib.printer_interface import print_pdf_on_thermal_network, print_pdf_on_thermal_usb, verify_connection_espos_on_usb, verify_connection_espos_on_network
 import uuid
 from flask_cors import CORS
