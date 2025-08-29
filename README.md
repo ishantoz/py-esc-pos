@@ -77,12 +77,10 @@ pip install -r requirements.txt
    - Connect your USB thermal printer
    - Run Zadig as Administrator
    - Select your printer from the device list
-   - Choose "WinUSB" as the driver
+   - Choose "libusbK" as the driver (NOT WinUSB)
    - Click "Install Driver" or "Replace Driver"
 
-**Alternative USB Drivers**:
-- **libusb-win32**: For older Windows versions
-- **WinUSB**: Modern Windows USB driver framework
+**Important**: Use **libusbK** drivers for USB thermal printers to work properly. WinUSB drivers typically won't work for printer communication.
 
 **Troubleshooting USB Issues**:
 
